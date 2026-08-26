@@ -250,8 +250,8 @@ export default function DashboardPage() {
         <div className="rounded-lg border bg-card p-6 shadow-sm">
           <h3 className="font-semibold">Revenue Trend</h3>
           <p className="text-xs text-muted-foreground">Last 12 months</p>
-          <div className="mt-4 h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="mt-4 h-[250px] min-h-62.5 w-full min-w-0">
+            <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={revenueTrend}>
                 <defs>
                   <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
@@ -301,8 +301,8 @@ export default function DashboardPage() {
         <div className="rounded-lg border bg-card p-6 shadow-sm">
           <h3 className="font-semibold">Pipeline by Stage</h3>
           <p className="text-xs text-muted-foreground">Deal values per stage</p>
-          <div className="mt-4 h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="mt-4 h-[250px] min-h-62.5 w-full min-w-0">
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={pipelineFunnel} layout="vertical" barSize={28}>
                 <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} horizontal={false} />
                 <XAxis
