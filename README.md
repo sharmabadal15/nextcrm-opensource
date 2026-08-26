@@ -34,30 +34,22 @@
 
 ## Screenshots
 
-<!-- Add your screenshots to docs/screenshots/ and uncomment/update the paths below -->
-
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="Dashboard" width="100%" />
+  <img src="docs/screenshots/dashboard.png" alt="Dashboard — KPI cards, revenue trends, pipeline chart, top deals, and recent activity" width="100%" />
+  <br />
+  <em>Dashboard — KPI cards, revenue trends, pipeline overview, top deals & recent activity</em>
 </p>
 
 <details>
 <summary><strong>More screenshots</strong></summary>
 
-| Contacts | Deals (Kanban) |
+| Deals (Kanban Board) | Activities |
 |---|---|
-| ![Contacts](docs/screenshots/contacts.png) | ![Deals Kanban](docs/screenshots/deals-kanban.png) |
+| ![Deals Kanban](docs/screenshots/deals_and_KANBA_%20board_draggable.png) | ![Activities](docs/screenshots/activities.png) |
 
-| Contact Detail | Reports |
-|---|---|
-| ![Contact Detail](docs/screenshots/contact-detail.png) | ![Reports](docs/screenshots/reports.png) |
-
-| Calendar | Settings |
+| Calendar | Settings & Integrations |
 |---|---|
 | ![Calendar](docs/screenshots/calendar.png) | ![Settings](docs/screenshots/settings.png) |
-
-| Dark Mode | Command Palette |
-|---|---|
-| ![Dark Mode](docs/screenshots/dark-mode.png) | ![Command Palette](docs/screenshots/command-palette.png) |
 
 </details>
 
@@ -152,14 +144,38 @@
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose
 - [Node.js 18+](https://nodejs.org/) & [pnpm](https://pnpm.io/)
 
-### 1. Clone the repo
+### Option A: One-Command Setup (Recommended)
+
+```bash
+git clone https://github.com/sharmabadal15/nextcrm-opensource.git
+cd nextcrm-opensource
+./start.sh
+```
+
+This single script will:
+- Check prerequisites (Docker, Node, pnpm)
+- Create `.env` files from examples
+- Generate `AUTH_SECRET` automatically
+- Start all Docker services (PostgreSQL, Redis, MinIO, API, Celery)
+- Run database migrations and seed demo data
+- Install frontend dependencies
+- Start the Next.js dev server
+
+> To reset everything and start fresh: `./start.sh --fresh`
+
+### Option B: Manual Setup
+
+<details>
+<summary>Step-by-step instructions</summary>
+
+#### 1. Clone the repo
 
 ```bash
 git clone https://github.com/sharmabadal15/nextcrm-opensource.git
 cd nextcrm-opensource
 ```
 
-### 2. Start the backend
+#### 2. Start the backend
 
 ```bash
 cd backend
@@ -169,7 +185,7 @@ docker compose exec api alembic upgrade head
 docker compose exec api python -m app.seed
 ```
 
-### 3. Start the frontend
+#### 3. Start the frontend
 
 ```bash
 cd crm-app-next
@@ -195,7 +211,9 @@ AUTH_SECRET=<your-generated-secret>
 pnpm dev
 ```
 
-### 4. Open the app
+</details>
+
+### Open the app
 
 - **App:** [http://localhost:3000](http://localhost:3000)
 - **API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
