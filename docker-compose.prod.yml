@@ -1,0 +1,175 @@
+# =============================================================================
+# NextCRM — Production Docker Compose
+# =============================================================================
+# Usage:
+#   Deploy:   docker compose -f docker-compose.prod.yml up -d --build
+#   Stop:     docker compose -f docker-compose.prod.yml down
+#   Logs:     docker compose -f docker-compose.prod.yml logs -f
+#   Reset:    docker compose -f docker-compose.prod.yml down -v
+#
+# All traffic goes through Nginx on port 80.
+# Internal services (db, redis, minio) are not exposed to the host.
+# =============================================================================
+
+services:
+  # -------------------------------------------------------------------------
+  # Reverse Proxy
+  # -------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: crm-nginx
+    ports:
+      - "${PUBLIC_PORT:-80}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - api
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # Infrastructure (internal only — no ports exposed to host)
+  # -------------------------------------------------------------------------
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: crm-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-crm_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-crm_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crm_user} -d ${POSTGRES_DB:-crm_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: crm-redis
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: crm-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # Backend (production builds — no volume mounts, no reload)
+  # -------------------------------------------------------------------------
+  api:
+    build:
+      context: ./backend
+      target: production
+    container_name: crm-api
+    environment:
+      APP_NAME: ${APP_NAME:-CRM Pro API}
+      APP_ENV: production
+      DEBUG: "false"
+      API_V1_PREFIX: /api/v1
+      BACKEND_CORS_ORIGINS: '["${PUBLIC_URL:-http://localhost}"]'
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-crm_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-crm_db}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-crm-files}
+      MINIO_USE_SSL: "false"
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      LOG_LEVEL: ${LOG_LEVEL:-WARNING}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  celery_worker:
+    build:
+      context: ./backend
+      target: production
+    container_name: crm-celery-worker
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-crm_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-crm_db}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-crm-files}
+      MINIO_USE_SSL: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # Frontend (production build — standalone Next.js)
+  # -------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./crm-app-next
+      target: production
+      args:
+        NEXT_PUBLIC_APP_URL: ${PUBLIC_URL:-http://localhost}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-CRM Pro}
+        BACKEND_API_URL: http://api:8000/api/v1
+        AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
+    container_name: crm-frontend
+    environment:
+      NEXT_PUBLIC_APP_URL: ${PUBLIC_URL:-http://localhost}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-CRM Pro}
+      BACKEND_API_URL: http://api:8000/api/v1
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
+      AUTH_URL: ${PUBLIC_URL:-http://localhost}
+      AUTH_TRUST_HOST: "true"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
